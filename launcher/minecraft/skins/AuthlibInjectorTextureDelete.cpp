@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /*
- *  Prism Launcher - Minecraft Launcher
- *  Copyright (C) 2022 Sefa Eyeoglu <contact@scrumplex.net>
+ *  Fjord Launcher - Minecraft Launcher
+ *  Copyright (C) 2024 Evan Goode <mail@evangoo.de>
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -33,27 +33,30 @@
  *      limitations under the License.
  */
 
-#pragma once
-#include <QObject>
+#include "AuthlibInjectorTextureDelete.h"
 
-#include "minecraft/auth/AuthStep.h"
+#include "net/ByteArraySink.h"
+#include "net/RawHeaderProxy.h"
 
-#include <QtNetworkAuth/qoauth2authorizationcodeflow.h>
-class MSAStep : public AuthStep {
-    Q_OBJECT
-   public:
-    explicit MSAStep(AccountData* data, bool silent = false);
-    virtual ~MSAStep() noexcept = default;
+AuthlibInjectorTextureDelete::AuthlibInjectorTextureDelete(QString textureType) : NetRequest(), m_textureType(textureType)
+{
+    logCat = taskMCSkinsLogC;
+}
 
-    void perform() override;
+QNetworkReply* AuthlibInjectorTextureDelete::getReply(QNetworkRequest& request)
+{
+    setStatus(tr("Deleting texture"));
+    return m_network->deleteResource(request);
+}
 
-    QString describe() override;
-
-   signals:
-    void authorizeWithBrowser(const QUrl& url);
-
-   private:
-    bool m_silent;
-    QString m_clientId;
-    QOAuth2AuthorizationCodeFlow m_oauth2;
-};
+AuthlibInjectorTextureDelete::Ptr AuthlibInjectorTextureDelete::make(MinecraftAccountPtr account, QString textureType)
+{
+    auto up = makeShared<AuthlibInjectorTextureDelete>(textureType);
+    QString token = account->accessToken();
+    up->m_url = QUrl(account->accountServerUrl() + "/user/profile/" + account->profileId() + "/" + textureType);
+    up->m_sink.reset(new Net::ByteArraySink(std::make_shared<QByteArray>()));
+    up->addHeaderProxy(new Net::RawHeaderProxy(QList<Net::HeaderPair>{
+        { "Authorization", QString("Bearer %1").arg(token).toLocal8Bit() },
+    }));
+    return up;
+}
